@@ -1,8 +1,6 @@
 package socks5
 
-import (
-	"golang.org/x/net/context"
-)
+import "context"
 
 // RuleSet is used to provide custom rules to allow or prohibit actions
 type RuleSet interface {
