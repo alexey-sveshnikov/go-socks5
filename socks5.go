@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"time"
 )
 
 const (
@@ -104,11 +105,19 @@ func (s *Server) ListenAndServe(network, addr string) error {
 	return s.Serve(l)
 }
 
+// acceptRetry is a delay in case of temporary accept error
+const acceptRetry = 500 * time.Millisecond
+
 // Serve is used to serve connections from a listener
 func (s *Server) Serve(l net.Listener) error {
 	for {
 		conn, err := l.Accept()
 		if err != nil {
+			if ne, ok := err.(net.Error); ok && ne.Temporary() {
+				s.config.Logger.Printf("[ERR] socks: %v; retrying in %v", ne, acceptRetry)
+				time.Sleep(acceptRetry)
+				continue
+			}
 			return err
 		}
 		go s.ServeConn(conn)
