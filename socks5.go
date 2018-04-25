@@ -102,6 +102,7 @@ func (s *Server) ListenAndServe(network, addr string) error {
 	if err != nil {
 		return err
 	}
+	defer l.Close()
 	return s.Serve(l)
 }
 
