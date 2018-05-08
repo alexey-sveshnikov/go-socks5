@@ -197,6 +197,16 @@ func (s *Server) handleConnect(ctx context.Context, conn conn, req *Request) err
 	}
 
 	// Start proxying
+
+	username := "-"
+	if (req.AuthContext != nil && req.AuthContext.Payload["Username"] != "") {
+		username = req.AuthContext.Payload["Username"]
+	}
+
+	s.config.Logger.Printf("[INF] user %s connect %s -> %s:%d",
+		username, conn.RemoteAddr(),
+		req.realDestAddr.IP, req.realDestAddr.Port)
+
 	errCh := make(chan error, 2)
 	go proxy(target, req.bufConn, errCh)
 	go proxy(conn, target, errCh)

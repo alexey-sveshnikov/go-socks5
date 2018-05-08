@@ -15,7 +15,6 @@ const (
 )
 
 var (
-	UserAuthFailed  = fmt.Errorf("User authentication failed")
 	NoSupportedAuth = fmt.Errorf("No supported authentication mechanism")
 )
 
@@ -102,7 +101,7 @@ func (a UserPassAuthenticator) Authenticate(reader io.Reader, writer io.Writer) 
 		if _, err := writer.Write([]byte{userAuthVersion, authFailure}); err != nil {
 			return nil, err
 		}
-		return nil, UserAuthFailed
+		return nil, fmt.Errorf("incorrect password or unknown user %s", user)
 	}
 
 	// Done
