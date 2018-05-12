@@ -48,6 +48,8 @@ type Config struct {
 
 	// Optional function for dialing out
 	Dial func(ctx context.Context, network, addr string) (net.Conn, error)
+
+	EventsHandlers []EventsHandler
 }
 
 // Server is reponsible for accepting connections and handling
@@ -55,6 +57,7 @@ type Config struct {
 type Server struct {
 	config      *Config
 	authMethods map[uint8]Authenticator
+	eventDispatcher EventDispatcher
 }
 
 // New creates a new Server and potentially returns an error
@@ -83,8 +86,15 @@ func New(conf *Config) (*Server, error) {
 		conf.Logger = log.New(os.Stdout, "", log.LstdFlags)
 	}
 
+	if conf.EventsHandlers == nil {
+		conf.EventsHandlers = []EventsHandler{
+			LoggingEventsHandler{conf.Logger},
+		}
+	}
+
 	server := &Server{
 		config: conf,
+		eventDispatcher: EventDispatcher{conf.EventsHandlers},
 	}
 
 	server.authMethods = make(map[uint8]Authenticator)

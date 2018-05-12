@@ -14,6 +14,7 @@ The package has the following features:
 * Support for the CONNECT command
 * Rules to do granular filtering of commands
 * Custom DNS resolution
+* Interface for statistics collection
 * Unit tests
 
 TODO

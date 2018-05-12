@@ -7,6 +7,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -161,10 +162,17 @@ func (s *Server) handleConnect(ctx context.Context, conn conn, req *Request) err
 		if err := sendReply(conn, ruleFailure, nil); err != nil {
 			return fmt.Errorf("Failed to send reply: %v", err)
 		}
+		s.eventDispatcher.OnSessionBlocked(req)
 		return fmt.Errorf("Connect to %v blocked by rules", req.DestAddr)
 	} else {
 		ctx = ctx_
 	}
+
+	// Send connect & schedule disconnect events
+	s.eventDispatcher.OnSessionStarted(req)
+	defer func(startTime time.Time) {
+		s.eventDispatcher.OnSessionFinished(req, time.Since(startTime))
+	}(time.Now())
 
 	// Attempt to connect
 	dial := s.config.Dial
@@ -196,20 +204,26 @@ func (s *Server) handleConnect(ctx context.Context, conn conn, req *Request) err
 		return fmt.Errorf("Failed to send reply: %v", err)
 	}
 
+	s.eventDispatcher.OnProxiedConnectionStarted(req, conn)
+
 	// Start proxying
-
-	username := "-"
-	if (req.AuthContext != nil && req.AuthContext.Payload["Username"] != "") {
-		username = req.AuthContext.Payload["Username"]
-	}
-
-	s.config.Logger.Printf("[INF] user %s connect %s -> %s:%d",
-		username, conn.RemoteAddr(),
-		req.realDestAddr.IP, req.realDestAddr.Port)
-
 	errCh := make(chan error, 2)
-	go proxy(target, req.bufConn, errCh)
-	go proxy(conn, target, errCh)
+	downloadBytesCh := make(chan int64, 1)
+	uploadBytesCh := make(chan int64, 1)
+	go proxy(target, req.bufConn, errCh, uploadBytesCh)
+	go proxy(conn, target, errCh, downloadBytesCh)
+
+	defer func() {
+		for i := 0; i <2; i++ {
+			select {
+			case uploadBytes := <-uploadBytesCh:
+				s.eventDispatcher.OnUploadBytes(req, uploadBytes)
+			case downloadBytes := <-downloadBytesCh:
+				s.eventDispatcher.OnDownloadBytes(req, downloadBytes)
+			default:
+			}
+		}
+	}()
 
 	// Wait
 	for i := 0; i < 2; i++ {
@@ -364,10 +378,11 @@ type closeWriter interface {
 
 // proxy is used to suffle data from src to destination, and sends errors
 // down a dedicated channel
-func proxy(dst io.Writer, src io.Reader, errCh chan error) {
-	_, err := io.Copy(dst, src)
+func proxy(dst io.Writer, src io.Reader, errCh chan error, bytesCountCh chan int64) {
+	copied, err := io.Copy(dst, src)
 	if tcpConn, ok := dst.(closeWriter); ok {
 		tcpConn.CloseWrite()
 	}
 	errCh <- err
+	bytesCountCh <- copied
 }

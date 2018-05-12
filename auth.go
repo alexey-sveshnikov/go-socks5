@@ -29,6 +29,14 @@ type AuthContext struct {
 	Payload map[string]string
 }
 
+func (a AuthContext) Username() string {
+	username, ok := a.Payload["Username"]; if ok {
+		return username
+	} else {
+		return "-"
+	}
+}
+
 type Authenticator interface {
 	Authenticate(reader io.Reader, writer io.Writer) (*AuthContext, error)
 	GetCode() uint8
